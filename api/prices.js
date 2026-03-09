@@ -34,32 +34,63 @@ export default async function handler(req, res) {
     LINKUSDT:{id:'LINK',name:'Chainlink'}, UNIUSDT:{id:'UNI',name:'Uniswap'},
   };
 
-  // ── CRYPTO — Binance public API (no key, no IP restriction) ──────────────
+  // ── CRYPTO — CryptoCompare (global, no IP block) + Binance fallback ──────
+  const ccNames = { BTC:'Bitcoin', ETH:'Ethereum', SOL:'Solana', BNB:'BNB', XRP:'XRP', ADA:'Cardano', AVAX:'Avalanche', DOT:'Polkadot', LINK:'Chainlink', UNI:'Uniswap' };
   async function fetchCrypto() {
-    const syms = JSON.stringify(cryptoSymbols);
-    const r = await fetch(
-      `https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(syms)}`,
-      { signal: AbortSignal.timeout(8000) }
-    );
-    if (!r.ok) throw new Error(`Binance public ${r.status}`);
-    const data = await r.json();
-    if (!Array.isArray(data) || !data.length) throw new Error('empty');
-    return data.map(t => {
-      const meta = cryptoMeta[t.symbol];
-      if (!meta) return null;
-      const price = parseFloat(t.lastPrice) || 0;
-      const bid   = parseFloat(t.bidPrice)  || price * 0.9995;
-      const ask   = parseFloat(t.askPrice)  || price * 1.0005;
-      return {
-        symbol: meta.id, name: meta.name, price,
-        change24h: +(parseFloat(t.priceChangePercent)||0).toFixed(2),
-        high24h: parseFloat(t.highPrice) || price,
-        low24h:  parseFloat(t.lowPrice)  || price,
-        bid, ask,
-        spread: price > 0 ? ((ask - bid) / price * 100).toFixed(3) : '0',
-        volume: parseFloat(t.quoteVolume) || 0
-      };
-    }).filter(Boolean);
+    // Primary: CryptoCompare — works from all Vercel regions
+    try {
+      const r = await fetch(
+        'https://min-api.cryptocompare.com/data/pricemultifull?fsyms=BTC,ETH,SOL,BNB,XRP,ADA,AVAX,DOT,LINK,UNI&tsyms=USD',
+        { signal: AbortSignal.timeout(8000) }
+      );
+      if (!r.ok) throw new Error(`CC ${r.status}`);
+      const d = await r.json();
+      const raw = d.RAW || {};
+      const coins = Object.entries(raw).map(([sym, data]) => {
+        const q = data.USD;
+        if (!q || !q.PRICE) return null;
+        const price = q.PRICE;
+        const bid = +(price * 0.9995).toFixed(6);
+        const ask = +(price * 1.0005).toFixed(6);
+        return {
+          symbol: sym, name: ccNames[sym] || sym, price,
+          change24h: +(q.CHANGEPCT24HOUR || 0).toFixed(2),
+          high24h: q.HIGH24HOUR || price,
+          low24h:  q.LOW24HOUR  || price,
+          bid, ask,
+          spread: ((ask - bid) / price * 100).toFixed(3),
+          volume: q.VOLUME24HOURTO || 0
+        };
+      }).filter(Boolean);
+      if (coins.length >= 5) return coins;
+      throw new Error('CC insufficient');
+    } catch {
+      // Fallback: Binance public API
+      const syms = JSON.stringify(cryptoSymbols);
+      const r = await fetch(
+        `https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(syms)}`,
+        { signal: AbortSignal.timeout(8000) }
+      );
+      if (!r.ok) throw new Error(`Binance ${r.status}`);
+      const data = await r.json();
+      if (!Array.isArray(data) || !data.length) throw new Error('empty');
+      return data.map(t => {
+        const meta = cryptoMeta[t.symbol];
+        if (!meta) return null;
+        const price = parseFloat(t.lastPrice) || 0;
+        const bid   = parseFloat(t.bidPrice)  || price * 0.9995;
+        const ask   = parseFloat(t.askPrice)  || price * 1.0005;
+        return {
+          symbol: meta.id, name: meta.name, price,
+          change24h: +(parseFloat(t.priceChangePercent)||0).toFixed(2),
+          high24h: parseFloat(t.highPrice) || price,
+          low24h:  parseFloat(t.lowPrice)  || price,
+          bid, ask,
+          spread: price > 0 ? ((ask - bid) / price * 100).toFixed(3) : '0',
+          volume: parseFloat(t.quoteVolume) || 0
+        };
+      }).filter(Boolean);
+    }
   }
 
   // ── STOCKS via Finnhub ────────────────────────────────────────────────────
