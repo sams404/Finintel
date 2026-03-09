@@ -117,9 +117,19 @@ export default async function handler(req, res) {
   const { forex, fxRates } = forexRes.status==='fulfilled' ? forexRes.value : { forex:[], fxRates:{ NOK:10.52, EUR:0.924, GBP:0.793, USD:1 } };
   const goldPrice = goldRes.status==='fulfilled' ? goldRes.value : 5172.32;
 
+  // Platinum via Binance (XPTUSDT if available)
+  let platinumPrice = 978.50;
+  try {
+    const pr = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=XPTUSDT', { signal: AbortSignal.timeout(4000) });
+    const pd = await pr.json();
+    if (pd.price) platinumPrice = parseFloat(pd.price);
+  } catch {}
+
+  const gsRatio = goldPrice / 84.51;
   const metals = [
-    { symbol:'XAU', name:'Gold (1 troy oz)', price:goldPrice, change24h:-3.98, high24h:+(goldPrice*1.005).toFixed(2), low24h:+(goldPrice*0.995).toFixed(2), bid:+(goldPrice-0.5).toFixed(2), ask:+(goldPrice+0.5).toFixed(2), spread:'0.10' },
-    { symbol:'XAG', name:'Silver (1 troy oz)', price:84.51, change24h:-11.76, high24h:86.0, low24h:82.0, bid:84.48, ask:84.54, spread:'0.40' },
+    { symbol:'XAU', name:'Gold (1 troy oz)', price:goldPrice, change24h:-3.98, high24h:+(goldPrice*1.005).toFixed(2), low24h:+(goldPrice*0.995).toFixed(2), bid:+(goldPrice-0.5).toFixed(2), ask:+(goldPrice+0.5).toFixed(2), spread:'0.10', gsRatio:+gsRatio.toFixed(1) },
+    { symbol:'XAG', name:'Silver (1 troy oz)', price:84.51, change24h:-11.76, high24h:86.0, low24h:82.0, bid:84.48, ask:84.54, spread:'0.40', gsRatio:+gsRatio.toFixed(1) },
+    { symbol:'XPT', name:'Platinum (1 troy oz)', price:platinumPrice, change24h:-0.45, high24h:+(platinumPrice*1.01).toFixed(2), low24h:+(platinumPrice*0.99).toFixed(2), bid:+(platinumPrice-1).toFixed(2), ask:+(platinumPrice+1).toFixed(2), spread:'0.20' },
   ];
 
   const isLive = cryptoRes.status==='fulfilled' && cryptoRes.value?.length > 0;

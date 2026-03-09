@@ -338,6 +338,21 @@ input[type=checkbox]{accent-color:var(--acc);width:24px;height:24px;cursor:point
   cursor:pointer;letter-spacing:.05em;touch-action:manipulation;min-height:52px;
 }
 .edit-apply:active{opacity:.8;transform:scale(.98)}
+/* METALS RATIO */
+.gs-bar{padding:10px 14px 8px;background:rgba(255,170,0,.04);border-bottom:1px solid rgba(255,170,0,.1)}
+.gs-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.gs-lbl{font-size:10px;color:var(--t3);font-family:var(--sans);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.gs-val{font-size:16px;font-weight:600;color:var(--gld)}
+.gs-trend{font-size:10px;color:var(--t3)}
+.gs-track{height:4px;background:var(--brd2);border-radius:2px;overflow:hidden}
+.gs-fill{height:100%;background:linear-gradient(90deg,var(--gld),#ffcc44);border-radius:2px;transition:width .5s}
+.gs-labels{display:flex;justify-content:space-between;margin-top:3px;font-size:9px;color:var(--t3)}
+.trend-wrap{padding:8px 14px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--brd);flex-shrink:0}
+.trend-wrap::-webkit-scrollbar{display:none}
+.trend-pill{flex-shrink:0;background:var(--sur);border:1px solid var(--brd);border-radius:8px;padding:7px 10px;min-width:72px;text-align:center}
+.trend-sym{font-size:10px;font-weight:600;color:var(--t);margin-bottom:2px;font-family:var(--sans)}
+.trend-chg{font-size:12px;font-weight:700}
+.trend-lbl{font-size:9px;color:var(--t3);font-family:var(--sans)}
 .ds{border-bottom:1px solid var(--brd)}
 .toast{position:fixed;bottom:calc(var(--sb) + var(--bnav) + 14px);left:50%;transform:translateX(-50%);background:var(--grn);color:#fff;padding:10px 22px;border-radius:24px;font-family:var(--sans);font-size:12px;font-weight:700;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
@@ -382,6 +397,9 @@ input[type=checkbox]{accent-color:var(--acc);width:24px;height:24px;cursor:point
   <span class="src-tag demo" id="src-tag">DEMO</span>
 </div>
 
+<!-- TREND BAR -->
+<div class="trend-wrap" id="trendBar"></div>
+
 <!-- ARB TICKER -->
 <div class="ticker hidden" id="arbTicker"></div>
 
@@ -407,13 +425,15 @@ input[type=checkbox]{accent-color:var(--acc);width:24px;height:24px;cursor:point
         <div class="me-cell"><div class="me-sym">TSLA</div><input class="me-inp" id="mi-TSLA" type="number" inputmode="decimal" placeholder="175" autocomplete="off" autocorrect="off"></div>
       </div>
     </div>
+    <!-- METALS FIRST -->
+    <div class="ds">
+      <div class="sh"><span>★</span><span class="sh-title">Metals</span><span class="sh-cnt" id="c-metals">—</span><span class="sh-manual hidden" id="m-metals">MANUAL</span></div>
+      <div id="metals-gs-ratio"></div>
+      <div id="metals-list"></div>
+    </div>
     <div class="ds">
       <div class="sh"><span>⬜</span><span class="sh-title">Stocks</span><span class="sh-cnt" id="c-stocks">—</span><span class="sh-manual hidden" id="m-stocks">MANUAL</span></div>
       <div id="stocks-list"></div>
-    </div>
-    <div class="ds">
-      <div class="sh"><span>★</span><span class="sh-title">Metals</span><span class="sh-cnt" id="c-metals">—</span><span class="sh-manual hidden" id="m-metals">MANUAL</span></div>
-      <div id="metals-list"></div>
     </div>
     <div class="ds">
       <div class="sh"><span>⇄</span><span class="sh-title">Forex</span><span class="sh-cnt" id="c-forex">—</span></div>
@@ -929,7 +949,53 @@ function setList(id, html, cid, cnt) {
   if (cid) { const ce = $(cid); if (ce) ce.textContent = cnt ?? '—'; }
 }
 
+function renderMetalsExtra() {
+  const xau = S.metals.find(m => m.symbol === 'XAU');
+  const xag = S.metals.find(m => m.symbol === 'XAG');
+  const el = $('metals-gs-ratio'); if (!el) return;
+  if (!xau || !xag || !xau.price || !xag.price) { el.innerHTML = ''; return; }
+
+  const ratio = xau.price / xag.price;
+  // Historical range: GSR low ~40, high ~120
+  const pct = Math.min(100, Math.max(0, ((ratio - 40) / 80) * 100));
+  const signal = ratio > 90 ? { txt:'Silver недооценён → покупать XAG', c:'var(--grn)' }
+               : ratio < 50 ? { txt:'Gold недооценён → покупать XAU', c:'var(--gld)' }
+               : { txt:'Соотношение в норме', c:'var(--t3)' };
+
+  el.innerHTML = `<div class="gs-bar">
+    <div class="gs-row">
+      <span class="gs-lbl">Gold/Silver Ratio</span>
+      <span class="gs-val">${ratio.toFixed(1)}</span>
+    </div>
+    <div class="gs-track"><div class="gs-fill" style="width:${pct}%"></div></div>
+    <div class="gs-labels"><span>40 (Silver дорог)</span><span>80</span><span>120 (Silver дёшев)</span></div>
+    <div style="margin-top:6px;font-size:10px;color:${signal.c};font-family:var(--sans);font-weight:700">${signal.txt}</div>
+  </div>`;
+}
+
+function renderTrendBar() {
+  const el = $('trendBar'); if (!el) return;
+  const all = [
+    ...S.metals.map(a => ({ ...a, cat:'metal' })),
+    ...S.crypto.slice(0,4).map(a => ({ ...a, cat:'crypto' })),
+    ...S.stocks.slice(0,3).map(a => ({ ...a, cat:'stock' })),
+  ].sort((a,b) => Math.abs(b.change24h||0) - Math.abs(a.change24h||0)).slice(0,8);
+
+  el.innerHTML = all.map(a => {
+    const c = +(a.change24h||0), pos = c >= 0;
+    const bg = pos ? 'rgba(0,204,102,.08)' : 'rgba(255,51,85,.08)';
+    const border = pos ? 'rgba(0,204,102,.25)' : 'rgba(255,51,85,.25)';
+    return `<div class="trend-pill" style="background:${bg};border-color:${border}">
+      <div class="trend-sym">${a.symbol}</div>
+      <div class="trend-chg ${pos?'pos':'neg'}">${pos?'▲':'▼'}${Math.abs(c).toFixed(1)}%</div>
+      <div class="trend-lbl">${a.cat}</div>
+    </div>`;
+  }).join('');
+}
+
 function renderAll() {
+  renderMetalsExtra();
+  renderTrendBar();
   setList('stocks-list', S.stocks.map(rowAsset).join(''), 'c-stocks', S.stocks.length);
   setList('crypto-list', S.crypto.map(rowAsset).join(''), 'c-crypto', S.crypto.length);
   setList('metals-list', S.metals.map(rowAsset).join(''), 'c-metals', S.metals.length);
