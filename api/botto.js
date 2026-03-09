@@ -55,7 +55,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  const ANTHROPIC_KEY = (process.env.ANTHROPIC_API_KEY || '').trim();
+  const ANTHROPIC_KEY = (process.env.ANTHROPIC_API_KEY || '').replace(/\s/g, '');
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const { marketData, balance = 50, tax = 37.84 } = req.body || {};
