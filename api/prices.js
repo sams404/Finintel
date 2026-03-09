@@ -5,10 +5,9 @@ export default async function handler(req, res) {
 
   const FINNHUB_KEY = process.env.FINNHUB_API_KEY;
 
-  // ── DEMO DATA ─────────────────────────────────────────────────────────────
   const demoCrypto = [
-    { symbol:'BTC',  name:'Bitcoin',   price:67420, change24h:1.80,  high24h:68100, low24h:66200, bid:67387, ask:67453, spread:'0.001' },
-    { symbol:'ETH',  name:'Ethereum',  price:3180,  change24h:2.40,  high24h:3240,  low24h:3090,  bid:3178,  ask:3182,  spread:'0.002' },
+    { symbol:'BTC',  name:'Bitcoin',   price:67420, change24h:1.80,  high24h:68100, low24h:66200, bid:67387, ask:67453, spread:'0.100' },
+    { symbol:'ETH',  name:'Ethereum',  price:3180,  change24h:2.40,  high24h:3240,  low24h:3090,  bid:3178,  ask:3182,  spread:'0.200' },
     { symbol:'SOL',  name:'Solana',    price:178.5, change24h:3.10,  high24h:182,   low24h:173,   bid:178.4, ask:178.6, spread:'0.030' },
     { symbol:'BNB',  name:'BNB',       price:585,   change24h:0.90,  high24h:592,   low24h:578,   bid:584.7, ask:585.3, spread:'0.040' },
     { symbol:'XRP',  name:'XRP',       price:0.524, change24h:-0.70, high24h:0.534, low24h:0.512, bid:0.5238,ask:0.5242,spread:'0.001' },
@@ -26,73 +25,41 @@ export default async function handler(req, res) {
     { symbol:'TSLA', name:'Tesla Inc',    price:175.60, change24h:-1.80, high24h:180,    low24h:173,  bid:175.55, ask:175.65, spread:'0.056' },
   ];
 
-  // ── CRYPTO via CoinCap (free, no key, no rate limits) ─────────────────────
-  async function fetchCryptoCoinCap() {
-    const ids = 'bitcoin,ethereum,solana,binance-coin,xrp,cardano,avalanche,polkadot,chainlink,uniswap';
-    const r = await fetch(`https://api.coincap.io/v2/assets?ids=${ids}`, {
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(8000)
-    });
-    if (!r.ok) throw new Error(`CoinCap ${r.status}`);
-    const { data } = await r.json();
-    if (!data || !data.length) throw new Error('empty');
+  const cryptoSymbols = ['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT','ADAUSDT','AVAXUSDT','DOTUSDT','LINKUSDT','UNIUSDT'];
+  const cryptoMeta = {
+    BTCUSDT:{id:'BTC',name:'Bitcoin'}, ETHUSDT:{id:'ETH',name:'Ethereum'},
+    SOLUSDT:{id:'SOL',name:'Solana'}, BNBUSDT:{id:'BNB',name:'BNB'},
+    XRPUSDT:{id:'XRP',name:'XRP'}, ADAUSDT:{id:'ADA',name:'Cardano'},
+    AVAXUSDT:{id:'AVAX',name:'Avalanche'}, DOTUSDT:{id:'DOT',name:'Polkadot'},
+    LINKUSDT:{id:'LINK',name:'Chainlink'}, UNIUSDT:{id:'UNI',name:'Uniswap'},
+  };
 
-    const symMap = {
-      bitcoin:'BTC', ethereum:'ETH', solana:'SOL', 'binance-coin':'BNB',
-      xrp:'XRP', cardano:'ADA', avalanche:'AVAX', polkadot:'DOT',
-      chainlink:'LINK', uniswap:'UNI'
-    };
-    const nameMap = {
-      bitcoin:'Bitcoin', ethereum:'Ethereum', solana:'Solana', 'binance-coin':'BNB',
-      xrp:'XRP', cardano:'Cardano', avalanche:'Avalanche', polkadot:'Polkadot',
-      chainlink:'Chainlink', uniswap:'Uniswap'
-    };
-
-    return data.map(c => {
-      const price  = parseFloat(c.priceUsd) || 0;
-      const chg    = parseFloat(c.changePercent24Hr) || 0;
-      const spread = price > 0 ? (price * 0.001).toFixed(price > 100 ? 2 : 4) : '0';
-      return {
-        symbol:   symMap[c.id] || c.symbol,
-        name:     nameMap[c.id] || c.name,
-        price,
-        change24h: +chg.toFixed(2),
-        high24h:  +(price * (1 + Math.abs(chg) / 200)).toFixed(price > 100 ? 2 : 6),
-        low24h:   +(price * (1 - Math.abs(chg) / 200)).toFixed(price > 100 ? 2 : 6),
-        bid:      +(price * 0.9995).toFixed(price > 100 ? 2 : 6),
-        ask:      +(price * 1.0005).toFixed(price > 100 ? 2 : 6),
-        spread
-      };
-    });
-  }
-
-  // ── CRYPTO via CoinGecko (fallback) ───────────────────────────────────────
-  async function fetchCryptoCoingecko() {
-    const ids = 'bitcoin,ethereum,solana,binancecoin,ripple,cardano,avalanche-2,polkadot,chainlink,uniswap';
+  // ── CRYPTO — Binance public API (no key, no IP restriction) ──────────────
+  async function fetchCrypto() {
+    const syms = JSON.stringify(cryptoSymbols);
     const r = await fetch(
-      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc`,
-      { headers:{ 'Accept':'application/json' }, signal: AbortSignal.timeout(8000) }
+      `https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(syms)}`,
+      { signal: AbortSignal.timeout(8000) }
     );
-    if (!r.ok) throw new Error(`CoinGecko ${r.status}`);
+    if (!r.ok) throw new Error(`Binance public ${r.status}`);
     const data = await r.json();
     if (!Array.isArray(data) || !data.length) throw new Error('empty');
-    const idMap = {
-      bitcoin:'BTC', ethereum:'ETH', solana:'SOL', binancecoin:'BNB',
-      ripple:'XRP', cardano:'ADA', 'avalanche-2':'AVAX',
-      polkadot:'DOT', chainlink:'LINK', uniswap:'UNI'
-    };
-    return data.map(c => {
-      const price = c.current_price || 0;
-      const spread = price > 0 ? (price * 0.001).toFixed(price > 100 ? 2 : 4) : '0';
+    return data.map(t => {
+      const meta = cryptoMeta[t.symbol];
+      if (!meta) return null;
+      const price = parseFloat(t.lastPrice) || 0;
+      const bid   = parseFloat(t.bidPrice)  || price * 0.9995;
+      const ask   = parseFloat(t.askPrice)  || price * 1.0005;
       return {
-        symbol: idMap[c.id] || c.id.toUpperCase(), name: c.name, price,
-        change24h: +(c.price_change_percentage_24h || 0).toFixed(2),
-        high24h: c.high_24h || price, low24h: c.low_24h || price,
-        bid: +(price * 0.9995).toFixed(price > 100 ? 2 : 6),
-        ask: +(price * 1.0005).toFixed(price > 100 ? 2 : 6),
-        spread
+        symbol: meta.id, name: meta.name, price,
+        change24h: +(parseFloat(t.priceChangePercent)||0).toFixed(2),
+        high24h: parseFloat(t.highPrice) || price,
+        low24h:  parseFloat(t.lowPrice)  || price,
+        bid, ask,
+        spread: price > 0 ? ((ask - bid) / price * 100).toFixed(3) : '0',
+        volume: parseFloat(t.quoteVolume) || 0
       };
-    });
+    }).filter(Boolean);
   }
 
   // ── STOCKS via Finnhub ────────────────────────────────────────────────────
@@ -131,23 +98,22 @@ export default async function handler(req, res) {
     };
   }
 
-  // ── GOLD via CoinCap (PAXG) ───────────────────────────────────────────────
+  // ── GOLD via Binance PAXGUSDT (public, no key) ───────────────────────────
   async function fetchGold() {
-    const r = await fetch('https://api.coincap.io/v2/assets/pax-gold', { signal: AbortSignal.timeout(5000) });
-    const { data } = await r.json();
-    return parseFloat(data?.priceUsd) || 5172.32;
+    const r = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=PAXGUSDT', { signal: AbortSignal.timeout(5000) });
+    const d = await r.json();
+    return parseFloat(d.price) || 5172.32;
   }
 
-  // ── MAIN ──────────────────────────────────────────────────────────────────
   const [cryptoRes, stocksRes, forexRes, goldRes] = await Promise.allSettled([
-    fetchCryptoCoinCap().catch(() => fetchCryptoCoingecko()),
+    fetchCrypto(),
     fetchStocks(),
     fetchForex(),
     fetchGold(),
   ]);
 
-  const crypto = (cryptoRes.status==='fulfilled' && cryptoRes.value?.length) ? cryptoRes.value : demoCrypto;
-  const stocks = (stocksRes.status==='fulfilled' && stocksRes.value?.length) ? stocksRes.value : demoStocks;
+  const crypto    = (cryptoRes.status==='fulfilled' && cryptoRes.value?.length)  ? cryptoRes.value  : demoCrypto;
+  const stocks    = (stocksRes.status==='fulfilled' && stocksRes.value?.length)  ? stocksRes.value  : demoStocks;
   const { forex, fxRates } = forexRes.status==='fulfilled' ? forexRes.value : { forex:[], fxRates:{ NOK:10.52, EUR:0.924, GBP:0.793, USD:1 } };
   const goldPrice = goldRes.status==='fulfilled' ? goldRes.value : 5172.32;
 
