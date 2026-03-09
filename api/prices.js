@@ -164,5 +164,5 @@ export default async function handler(req, res) {
   ];
 
   const isLive = cryptoRes.status==='fulfilled' && cryptoRes.value?.length > 0;
-  res.json({ crypto, stocks, metals, forex, fxRates, ts:Date.now(), source: isLive ? 'live' : 'demo' });
+  res.json({ crypto, stocks, metals, forex, fxRates, ts:Date.now(), source: isLive ? 'live' : 'demo', v:'cc2' });
 }
