@@ -1,5 +1,5 @@
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = 'claude-opus-4-6';
 
 async function callClaude(key, messages, useSearch = false) {
   const headers = {
@@ -55,7 +55,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+  const ANTHROPIC_KEY = (process.env.ANTHROPIC_API_KEY || '').trim();
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const { marketData, balance = 50, tax = 37.84 } = req.body || {};

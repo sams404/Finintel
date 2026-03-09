@@ -3,7 +3,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+  const ANTHROPIC_KEY = (process.env.ANTHROPIC_API_KEY || '').trim();
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const { prompt } = req.body || {};
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-opus-4-6',
         max_tokens: 600,
         messages: [{ role: 'user', content: prompt }]
       })
